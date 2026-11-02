@@ -98,77 +98,77 @@ STYLESHEET = """
 """
 
 FLUORITE_CS = {
-    "Window": "#232629",
-    "WindowText": "#f2f4f7",
-    "Base": "#2a2e32",
-    "AlternateBase": "#30353a",
-    "ToolTipBase": "#2f3438",
-    "ToolTipText": "#f2f4f7",
-    "PlaceholderText": "#9aa3ab",
-    "Text": "#f2f4f7",
-    "Button": "#2a2e32",
-    "ButtonText": "#f2f4f7",
-    "BrightText": "#ffffff",
-    "Highlight": "#4a86e8",
-    "HighlightedText": "#ffffff",
-    "Light": "#34393e",
-    "Midlight": "#2f3438",
-    "Dark": "#181b1f",
-    "Mid": "#555b61",
-    "Shadow": "#0d0f12",
-    "Link": "#2980b9",
-    "LinkVisited": "#9b59b6"
+    "Window": "#2C333B",
+    "WindowText": "#F0F4F9",
+    "Base": "#0E1217",
+    "AlternateBase": "#1A2027",
+    "ToolTipBase": "#2C333B",
+    "ToolTipText": "#F0F4F9",
+    "PlaceholderText": "#7C8794",
+    "Text": "#F0F4F9",
+    "Button": "#2C333B",
+    "ButtonText": "#F0F4F9",
+    "BrightText": "#FFFFFF",
+    "Highlight": "#769EDB",
+    "HighlightedText": "#0E1217",
+    "Light": "#525E6C",
+    "Midlight": "#3F4854",
+    "Dark": "#0E1217",
+    "Mid": "#1A2027",
+    "Shadow": "#080A0D",
+    "Link": "#BCCDE6",
+    "LinkVisited": "#CBBCE6"
 }
 
 
 STD_COLORS = {
-    "white": "#f2f4f7",
+    "white": "#F0F4F9",
     "lightwhite": "#FFFFFF",
-    "darkwhite": "#D5D8DD",
+    "darkwhite": "#D3DDEA",
 
-    "black": "#2a2e32",
-    "lightblack": "#4A5056",
-    "darkblack": "#121416",
+    "black": "#2C333B",
+    "lightblack": "#525E6C",
+    "darkblack": "#0E1217",
 
-    "red": "#D95C5C",
-    "lightred": "#F28B82",
-    "darkred": "#A93B3B",
+    "red": "#DB7676",
+    "lightred": "#E6BCBC",
+    "darkred": "#B63A3A",
 
-    "orange": "#E89A4A",
-    "lightorange": "#F5C27B",
-    "darkorange": "#C17A2E",
+    "orange": "#DBA876",
+    "lightorange": "#E6D1BC",
+    "darkorange": "#B6783A",
 
-    "yellow": "#E0B84D",
-    "lightyellow": "#F5DC7A",
-    "darkyellow": "#B89330",
+    "yellow": "#DBC176",
+    "lightyellow": "#E6DCBC",
+    "darkyellow": "#B6973A",
 
-    "green": "#43B77A",
-    "lightgreen": "#78DBA3",
-    "darkgreen": "#2A8F5C",
+    "green": "#76DBA8",
+    "lightgreen": "#BCE6D1",
+    "darkgreen": "#3AB678",
 
-    "teal": "#5AA7A2",
-    "lightteal": "#8ACAC5",
-    "darkteal": "#3E807B",
+    "teal": "#76DBD4",
+    "lightteal": "#BCE6E3",
+    "darkteal": "#3AB6AE",
 
-    "blue": "#4A86E8",
-    "lightblue": "#7BA9F0",
-    "darkblue": "#2E62B8",
+    "blue": "#769EDB",
+    "lightblue": "#BCCDE6",
+    "darkblue": "#3A6BB6",
 
-    "indigo": "#6673C6",
-    "lightindigo": "#939DDA",
-    "darkindigo": "#4A56A0",
+    "indigo": "#767EDB",
+    "lightindigo": "#BCC0E6",
+    "darkindigo": "#3A44B6",
 
-    "purple": "#9575CD",
-    "lightpurple": "#B99FD9",
-    "darkpurple": "#7657A8",
+    "purple": "#9B76DB",
+    "lightpurple": "#CBBCE6",
+    "darkpurple": "#673AB6",
 
-    "pink": "#CB6A9E",
-    "lightpink": "#E095BE",
-    "darkpink": "#A84A7A",
+    "pink": "#DB76A8",
+    "lightpink": "#E6BCD1",
+    "darkpink": "#B63A78",
 
-    "cyan": "#56A8D8",
-    "lightcyan": "#84C3E5",
-    "darkcyan": "#3A85B0"
+    "cyan": "#76B6DB",
+    "lightcyan": "#BCD7E6",
+    "darkcyan": "#3A88B6"
 }
 
 
