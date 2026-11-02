@@ -85,6 +85,10 @@ class Database:
             if name in self.index:
                 return self.index[name]
 
+    def open(self, id: str) -> str:
+
+        return self.storage.open(id)
+
     def update_index(self, id: int) -> None:
 
         if not id in self.db:
@@ -128,11 +132,14 @@ class Database:
                             return
                         return self.set_attrs(kwargs["id"], kwargs["attrs"])
 
+                    case "open":
+                        if "id" not in kwargs:
+                            return
+                        return self.open(kwargs["id"])
+
                     case _:
                         return
 
-                if self.gc.is_save_needed(kwargs):
-                    self.storage.append(kwargs)
             except Exception as e:
                 logging.critical(f"Failed to run transaction: {str(e)}")
 
@@ -142,6 +149,8 @@ class Database:
             ts = self.queue.get()
             if "tr_id" in ts:
                 self.replies[ts["tr_id"]] = self.run_transaction(**ts)
+                if self.gc.is_save_needed(ts):
+                    self.storage.append(ts)
 
 
 class DatabaseManager(QObject):
@@ -224,6 +233,20 @@ class DatabaseManager(QObject):
     def query_by_attr_value(self, attr: str, value):
 
         return self.db.query_by_attr_value(attr, value)
+
+    def open(self, id: str):
+
+        tr_id = str(uuid.uuid4())
+
+        self.db.sched_transaction(
+            method="open", id=id,
+            tr_id=tr_id
+        )
+
+        while tr_id not in self.db.replies:
+            time.sleep(0.001)
+
+        return self.db.replies.pop(tr_id)
 
     def stop_thread(self):
 

@@ -40,12 +40,15 @@ class Resolver:
         results = []
 
         for attr, val in attrs.items():
-            r = self.core.db.query_by_attr_value(attr, val)
+            r = self.db.query_by_attr_value(attr, val)
             if r:
                 results.append(r)
 
+        if not results:
+            return []
+
         return list(set(results[0]).intersection(*results[1:]))
 
-    def open(self, id: int, mode: str):
+    def open(self, id: int):
 
-        ...
+        return self.db.open(id)

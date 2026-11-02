@@ -38,8 +38,7 @@ REQ_TYPES = {
         "attrs": dict
     },
     "open": {
-        "id": str,
-        "mode": str
+        "id": str
     },
     "request": {
         "id": str,

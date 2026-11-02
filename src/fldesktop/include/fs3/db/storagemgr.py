@@ -9,6 +9,7 @@ class StorageManager:
 
         self.workdir_path = Path(path)
         self.wal_path = self.workdir_path / "wal"
+        self.blobs_path = self.workdir_path / "blobs"
 
         self.prepare()
 
@@ -17,6 +18,7 @@ class StorageManager:
 
         if not self.workdir_path.exists():
             self.workdir_path.mkdir(parents=True, exist_ok=True)
+            self.blobs_path.mkdir(parents=True, exist_ok=True)
             self.wal_path.touch()
 
     def load(self) -> None:
@@ -34,3 +36,12 @@ class StorageManager:
 
         with open(self.wal_path, "a+b") as f:
             f.write(msgpack.dumps(tr))
+
+    def open(self, id: str) -> str:
+        "Touch blob and return its path"
+
+        path = self.blobs_path / id
+
+        path.touch(exist_ok=True)
+
+        return str(path)
