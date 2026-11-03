@@ -5,6 +5,11 @@ import logging
 import time
 import signal
 import os
+import shlex
+
+
+AUDIO_UID = os.getuid()
+AUDIO_RUNTIME_DIR = f"/run/user/{AUDIO_UID}"
 
 
 SERVICES = {
@@ -58,19 +63,22 @@ SERVICES = {
     },
     "pipewire": {
         "exec": (
-            "export XDG_RUNTIME_DIR=/run/user/1000 && "
+            f"export XDG_RUNTIME_DIR={shlex.quote(AUDIO_RUNTIME_DIR)} && "
             "mkdir -p $XDG_RUNTIME_DIR && "
             "chmod 0700 $XDG_RUNTIME_DIR && "
-            "chown 1000:1000 $XDG_RUNTIME_DIR && "
-            "exec dbus-run-session -- pipewire"
+            f"chown {AUDIO_UID}:{AUDIO_UID} $XDG_RUNTIME_DIR && "
+            "exec pipewire"
         ),
-        "wait": "while [ ! -S /run/user/1000/pipewire-0 ]; do sleep 0.05; done",
-        "user": 1000
+        "wait": f"while [ ! -S {AUDIO_RUNTIME_DIR}/pipewire-0 ]; do sleep 0.05; done",
+        "user": AUDIO_UID
     },
     "wireplumber": {
-        "exec": "exec /usr/bin/wireplumber",
-        "wait": "while [ ! -S /run/user/1000/pipewire-0 ]; do sleep 0.05; done",
-        "user": 1000
+        "exec": (
+            f"export XDG_RUNTIME_DIR={shlex.quote(AUDIO_RUNTIME_DIR)} && "
+            "exec /usr/bin/wireplumber"
+        ),
+        "wait": f"while [ ! -S {AUDIO_RUNTIME_DIR}/pipewire-0 ]; do sleep 0.05; done",
+        "user": AUDIO_UID
     }
 }
 
@@ -85,11 +93,19 @@ class Service:
         self.user = user
 
         self.proc = None
-        self.is_running = False
         self.is_ready = False
 
         self.thread = threading.Thread(target=self.supervise)
         self.shutdown = threading.Event()
+
+    @property
+    def is_active(self) -> bool:
+        return (
+            self.thread.is_alive()
+            and self.is_ready
+            and self.proc is not None
+            and self.proc.poll() is None
+        )
 
     def _wrap(self, cmd: str) -> str:
         if self.user != 0 and os.getuid() != self.user:
@@ -116,7 +132,7 @@ class Service:
                 self.proc = subprocess.Popen(
                     self._wrap(self.exec),
                     shell=True,
-                    preexec_fn=os.setpgrp,
+                    start_new_session=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                 )
@@ -126,7 +142,6 @@ class Service:
                     break
                 continue
 
-            self.is_running = True
             self.is_ready = False
 
             log_thread = threading.Thread(
@@ -141,7 +156,7 @@ class Service:
                     break
                 time.sleep(0.1)
 
-            self.is_running = False
+            self.is_ready = False
 
             if self.shutdown.is_set():
                 break
@@ -154,16 +169,18 @@ class Service:
 
         if self.proc is not None and self.proc.poll() is None:
             try:
-                os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+                os.killpg(self.proc.pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
                 pass
             try:
                 self.proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 try:
-                    os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
+                    os.killpg(self.proc.pid, signal.SIGKILL)
                 except (ProcessLookupError, PermissionError):
                     pass
+                self.proc.wait()
+        self.is_ready = False
 
     def wait_ready(self, timeout: float = 10.0) -> bool:
         if not self.wait:
@@ -225,26 +242,43 @@ class Service:
             return self.is_ready
 
         logging.debug(f"Starting external service {self.name}...")
+        if self.thread.ident is not None:
+            self.thread = threading.Thread(target=self.supervise)
         self.shutdown.clear()
         self.is_ready = False
         self.thread.start()
         return self.wait_ready(timeout) if blocking else True
 
     def stop(self):
-        if not self.thread.is_alive():
+        if not self.thread.is_alive() and (
+            self.proc is None or self.proc.poll() is not None
+        ):
             return
 
         logging.debug(f"Stopping external service {self.name}...")
 
         self.shutdown.set()
 
-        if self.proc is not None and self.proc.poll() is None:
+        proc = self.proc
+        if proc is not None and proc.poll() is None:
             try:
-                os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+                os.killpg(proc.pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
                 pass
 
-        self.thread.join(timeout=10)
+        self.thread.join(timeout=5)
+        if proc is not None and proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        self.thread.join(timeout=5)
+        if self.thread.is_alive() or (proc is not None and proc.poll() is None):
+            raise TimeoutError(f"[{self.name}] service did not stop")
 
 
 class InitWorker:
@@ -259,10 +293,7 @@ class InitWorker:
             self.services[sv] = Service(sv, **SERVICES[sv])
 
     def is_running(self):
-        for sv in self.services.values():
-            if not sv.thread.is_alive():
-                return False
-        return True
+        return all(sv.is_active for sv in self.services.values())
 
     def full_init(self):
         logging.debug("Starting external services sequentially...")
@@ -278,9 +309,16 @@ class InitWorker:
 
     def shutdown(self):
         logging.debug("Stopping external services...")
-        for sv in self.services.values():
-            sv.stop()
+        errors = []
+        for sv in reversed(self.services.values()):
+            try:
+                sv.stop()
+            except Exception as e:
+                logging.exception(f"Failed to stop external service {sv.name}")
+                errors.append(e)
         self.stop.set()
+        if errors:
+            raise RuntimeError("One or more external services did not stop") from errors[0]
 
     def run_cmd(self, type: str, args: dict, result: dict):
         try:
@@ -353,17 +391,7 @@ class ExtSvInit:
         return self._submit("run_service", {"service": service})
 
     def shutdown(self):
-        self.worker.queue.put(
-            {
-                "type": "shutdown",
-                "args": {},
-                "result": {
-                    "ok": False,
-                    "error": None,
-                    "event": threading.Event()
-                }
-            }
-        )
+        return self._submit("shutdown", {})
 
     def is_running(self):
         return self.worker.is_running()
