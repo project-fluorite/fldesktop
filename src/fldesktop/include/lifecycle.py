@@ -148,12 +148,12 @@ class LifeCycle:
             return
 
         subprocess.run("sync")
-        subprocess.run("mount -o remount,ro /")
+        subprocess.run("mount -o remount,ro /", shell=True)
 
         if self._reboot_requested:
-            subprocess.run("reboot -f")
+            subprocess.run("reboot -f", shell=True)
         else:
-            subprocess.run("poweroff -f")
+            subprocess.run("poweroff -f", shell=True)
 
     def get_is_dev_env(self):
         return self.is_dev_environment
