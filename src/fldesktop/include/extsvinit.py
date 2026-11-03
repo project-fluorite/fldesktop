@@ -279,6 +279,8 @@ class InitWorker:
         self.services = {}
         self.queue = queue.Queue()
         self.stop = threading.Event()
+        self._shutdown_complete = False
+        self._state_lock = threading.Lock()
         self.load_services()
 
     def load_services(self):
@@ -286,6 +288,10 @@ class InitWorker:
             self.services[sv] = Service(sv, **SERVICES[sv])
 
     def is_running(self):
+        with self._state_lock:
+            if self._shutdown_complete:
+                self._shutdown_complete = False
+                return True
         return all(sv.is_active for sv in self.services.values())
 
     def full_init(self):
@@ -331,6 +337,9 @@ class InitWorker:
             result["ok"] = False
             result["error"] = e
         finally:
+            if type == "shutdown":
+                with self._state_lock:
+                    self._shutdown_complete = True
             result["event"].set()
 
     def mainloop(self):
