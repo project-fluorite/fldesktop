@@ -5,11 +5,6 @@ import logging
 import time
 import signal
 import os
-import shlex
-
-
-AUDIO_UID = os.getuid()
-AUDIO_RUNTIME_DIR = f"/run/user/{AUDIO_UID}"
 
 
 SERVICES = {
@@ -63,24 +58,22 @@ SERVICES = {
     },
     "pipewire": {
         "exec": (
-            f"export XDG_RUNTIME_DIR={shlex.quote(AUDIO_RUNTIME_DIR)} && "
-            "mkdir -p $XDG_RUNTIME_DIR && "
-            "chmod 0700 $XDG_RUNTIME_DIR && "
-            f"chown {AUDIO_UID}:{AUDIO_UID} $XDG_RUNTIME_DIR && "
+            "export XDG_RUNTIME_DIR=/run/user/0 && "
             "exec pipewire"
         ),
-        "wait": f"while [ ! -S {AUDIO_RUNTIME_DIR}/pipewire-0 ]; do sleep 0.05; done",
-        "user": AUDIO_UID
+        "wait": "while [ ! -S /run/user/0/pipewire-0 ]; do sleep 0.05; done",
+        "user": 0
     },
     "wireplumber": {
         "exec": (
-            f"export XDG_RUNTIME_DIR={shlex.quote(AUDIO_RUNTIME_DIR)} && "
+            "export XDG_RUNTIME_DIR=/run/user/0 && "
             "exec /usr/bin/wireplumber"
         ),
-        "wait": f"while [ ! -S {AUDIO_RUNTIME_DIR}/pipewire-0 ]; do sleep 0.05; done",
-        "user": AUDIO_UID
+        "wait": "while [ ! -S /run/user/0/pipewire-0 ]; do sleep 0.05; done",
+        "user": 0
     }
 }
+SHUTDOWN_WHITELIST = ["weston"]
 
 
 class Service:
@@ -311,6 +304,9 @@ class InitWorker:
         logging.debug("Stopping external services...")
         errors = []
         for sv in reversed(self.services.values()):
+            if sv.name in SHUTDOWN_WHITELIST:
+                logging.debug(f"Keeping external service running: {sv.name}")
+                continue
             try:
                 sv.stop()
             except Exception as e:
