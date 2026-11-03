@@ -71,13 +71,12 @@ class ProgressBar(QWidget):
 
 class StartupScreen(Surface):
     def __init__(self, comm):
-        super().__init__(comm, glass=False, auto_attach=False, layer=995)
+        super().__init__(comm, glass=False, auto_attach=False, layer=996)
 
         self.comm = comm
         self.comm.subscribe("desktop_size_changed", self.refresh_geometry)
 
         self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet("background-color: black;")
 
         self.layout = QVBoxLayout(self)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -112,6 +111,12 @@ class StartupScreen(Surface):
     def showEvent(self, event):
         QTimer.singleShot(1000, lambda: self.comm.emit("startupscreen_shown"))
         return super().showEvent(event)
+    
+    def paintEvent(self, event):
+
+        p = QPainter(self)
+        p.fillRect(self.rect(), Qt.GlobalColor.black)
+        p.end()
 
 
 class ShutdownScreen(Surface):
@@ -122,7 +127,6 @@ class ShutdownScreen(Surface):
         self.comm.subscribe("desktop_size_changed", self.refresh_geometry)
 
         self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet("background-color: black;")
 
         self.layout = QVBoxLayout(self)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -156,6 +160,12 @@ class ShutdownScreen(Surface):
     def showEvent(self, event):
         QTimer.singleShot(500, lambda: self.comm.emit("shutdownscreen_shown"))
         return super().showEvent(event)
+
+    def paintEvent(self, event):
+
+        p = QPainter(self)
+        p.fillRect(self.rect(), Qt.GlobalColor.black)
+        p.end()
 
 
 class StartupScreenManager:
@@ -194,7 +204,7 @@ class StartupScreenManager:
             self.poll_timer.stop()
             self.comm.request("fade_effect", "fadeout")
             self.startup.hide()
-            self.comm.request("init", "run", runlevel=3)
+            self.comm.request("lifecycle", "things_after_extsvinit")
 
     def show_shutdown(self, reboot: bool = False):
 
@@ -206,3 +216,5 @@ class StartupScreenManager:
         self.shutdown.refresh_geometry()
 
         self.comm.request("fade_effect", "fadein")
+
+        self.poll_timer.start()

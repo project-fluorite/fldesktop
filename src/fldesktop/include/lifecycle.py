@@ -14,6 +14,7 @@ class LifeCycle:
                 "shutdown": self.shutdown,
                 "reboot": self.reboot,
                 "logout": self.logout,
+                "things_after_extsvinit": self.things_after_extsvinit,
                 "is_dev_environment": self.get_is_dev_env
             }
         )
@@ -28,6 +29,9 @@ class LifeCycle:
                 "/run/openrc"
             )
         )
+
+        self._shutdown_requested = False
+        self._reboot_requested = False
 
         self.wait_udev()
         self.setup_env()
@@ -112,18 +116,47 @@ class LifeCycle:
 
         self.comm.request("extsvinit", "shutdown")
 
+    def things_after_extsvinit(self):
+
+        if not (self._reboot_requested or self._shutdown_requested):
+            self.comm.request("init", "run", runlevel=3)
+        else:
+            self.comm.request("init", "cleanup")
+
     def shutdown(self):
 
-        self.comm.request("startupscreen", "show_shutdown")
+        self._shutdown_requested = True
+        self.comm.request("ssmgr", "show_shutdown")
 
     def reboot(self):
 
-        self.comm.request("startupscreen", "show_shutdown")
+        self._reboot_requested = True
+        self.comm.request("ssmgr", "show_shutdown", True)
 
     def logout(self):
 
         self.stop_services()
         self.comm.request("init", "cleanup")
 
+    def halt_system(self):
+
+        if not (self._shutdown_requested or self._reboot_requested):
+            return
+
+        if self.is_dev_environment:
+            logging.debug("Requested to halt the system but doing nothing")
+            return
+
+        subprocess.run("sync")
+        subprocess.run("mount -o remount,ro /")
+
+        if self._reboot_requested:
+            subprocess.run("reboot -f")
+        else:
+            subprocess.run("poweroff -f")
+
     def get_is_dev_env(self):
         return self.is_dev_environment
+
+    def srv_cleanup(self):
+        self.halt_system()
