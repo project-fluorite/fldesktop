@@ -123,7 +123,7 @@ class AppServer:
         )
             
         self.socket_path = os.path.join(
-            os.environ["XDG_RUNTIME_DIR"], "flos.socket"
+            os.environ["XDG_RUNTIME_DIR"], "fluorite.socket"
         )
         
         self.server_socket: Optional[socket.socket] = None
