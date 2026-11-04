@@ -38,11 +38,12 @@ class Power(Applet):
             self.layout.addWidget(btn)
             btn.clicked.connect(i[2])
 
-        lo_btn = QToolButton()
-        lo_btn.setToolTip("Logout")
-        lo_btn.setFixedSize(32, 32)
-        self.layout.addWidget(lo_btn)
-        lo_btn.clicked.connect(lambda: self.comm.request("lifecycle", "logout"))
+        if self.comm.request("lifecycle", "is_dev_environment"):
+            lo_btn = QToolButton()
+            lo_btn.setToolTip("Logout")
+            lo_btn.setFixedSize(32, 32)
+            self.layout.addWidget(lo_btn)
+            lo_btn.clicked.connect(lambda: self.comm.request("lifecycle", "logout"))
 
         self.widget.setFixedSize(
             self.container.width() + 5, self.container.height() + 5
