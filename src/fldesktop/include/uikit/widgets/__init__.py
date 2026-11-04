@@ -1,5 +1,5 @@
 from fldesktop.include.uikit.widgets import (
-    root, base, vlayout, hlayout, flayout, container, stretch,
+    widget, vlayout, hlayout, flayout, container, stretch,
     button, checkbox, radiobutton, slider,
     entry, textedit, label,
     icon, imageview,
@@ -10,8 +10,7 @@ from fldesktop.include.uikit.widgets import (
 
 
 widgets = {
-    "root": root.RootWidget,
-    "widget": base.Widget,
+    "widget": widget.Widget,
     "vlayout": vlayout.VLayout,
     "hlayout": hlayout.HLayout,
     "flayout": flayout.FLayout,
