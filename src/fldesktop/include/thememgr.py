@@ -81,16 +81,6 @@ STYLESHEET = """
                 border-bottom: 2px solid white;
               }
 
-              QTextEdit
-              {
-                background-color: transparent
-              }
-
-              QTextBrowser
-              {
-                background-color: transparent
-              }
-
               QLineEdit
               {
                 background-color: transparent
