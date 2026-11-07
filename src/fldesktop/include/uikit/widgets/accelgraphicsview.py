@@ -44,7 +44,7 @@ class ImageViewer(QWidget):
         self._width = width
         self._height = height
         self._qimg = QImage(
-            data, width, height, 3 * width, QImage.Format.Format_RGB888
+            data, width, height, 4 * width, QImage.Format.Format_RGBA8888
         )
         self._img_rect = None
         self.frameReceived.emit(data)
@@ -80,7 +80,7 @@ class ImageViewer(QWidget):
                 sh = dh
             self._img_rect = QRect((dw - sw) // 2, (dh - sh) // 2, sw, sh)
 
-        p.fillRect(self.rect(), Qt.GlobalColor.black)
+        p.fillRect(self.rect(), Qt.GlobalColor.transparent)
         p.drawImage(self._img_rect, qimg)
         p.end()
 
@@ -206,7 +206,7 @@ class SharedMemoryReceiver:
                     continue
                 if w == 0 or h == 0:
                     continue
-                size = w * h * 3
+                size = w * h * 4
                 if HEADER_SIZE + size > bs:
                     continue
                 if not _is_newer(seq, self._last_seq):
@@ -221,7 +221,7 @@ class SharedMemoryReceiver:
                 return None
 
             off = best_idx * bs
-            size = best_w * best_h * 3
+            size = best_w * best_h * 4
             data = mm[off + HEADER_SIZE: off + HEADER_SIZE + size]
 
             seq2, w2, h2, flags2 = _HDR.unpack(mm[off:off + HEADER_SIZE])
@@ -359,7 +359,7 @@ class AccelGraphicsView(Widget):
             self.rx.stop()
 
         ssize = self.qwidget.screen().size()
-        bs = ssize.width() * ssize.height() * 3
+        bs = ssize.width() * ssize.height() * 4
 
         self.rx = Receiver(bs)
         self.rx.thread.frameReceived.connect(self.qwidget.set_image)
