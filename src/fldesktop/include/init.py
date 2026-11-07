@@ -3,7 +3,8 @@ from fldesktop.include import (communicator, desktop, dialogs, lifecycle, superf
                      configmgr, appserver, search, wm, loginmgr,
                      localemgr, notifications, iconmgr, QApp,
                      PostInit, fs3, uikit, appletmgr,
-                     panel, startupscreen, extsvinit, background)
+                     panel, startupscreen, extsvinit, background,
+                     systemsounds)
 from fldesktop.include.appserver.clientmgr import ClientManager
 from fldesktop.include.input import InputManager
 
@@ -143,6 +144,10 @@ SERVICES = {
     "AppletManager": {
         "object": appletmgr.AppletManager,
         "depends": ["Desktop"]
+    },
+    "SystemSounds": {
+        "object": systemsounds.SystemSounds,
+        "depends": ["QApplication"]
     },
     "PostInit": {
         "object": PostInit,

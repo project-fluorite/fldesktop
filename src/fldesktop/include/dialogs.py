@@ -177,6 +177,8 @@ class DialogManager:
             }
         )
 
+        self.comm.request("syssounds", "play", "error")
+
     def sys_error(self, contents: str):
 
         diag = MessageBox("syserror", contents)
@@ -187,3 +189,5 @@ class DialogManager:
             size=(300, 200),
             type="messagebox"
         )
+
+        self.comm.request("syssounds", "play", "error")
