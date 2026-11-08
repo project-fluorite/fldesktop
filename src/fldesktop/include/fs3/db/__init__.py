@@ -2,6 +2,7 @@ from PySide6.QtCore import QObject, Signal, QTimer
 from fldesktop.include.fs3.models import Node
 from fldesktop.include.fs3.db.storagemgr import StorageManager
 from fldesktop.include.fs3.db.gc import GarbageCollector
+from fldesktop.include.fs3.db.query import QueryEngine
 from pathlib import Path
 import threading
 import msgpack
@@ -26,6 +27,7 @@ class Database:
         self.stop = threading.Event()
 
         self.gc = GarbageCollector(self)
+        self.querier = QueryEngine(self)
         self.storage = StorageManager(self, storage_path)
         self.storage.load()
 
@@ -77,13 +79,10 @@ class Database:
         with self.lock:
             return self.db
 
-    def query_by_attr_value(self, attr: str, value) -> list | None:
+    def query(self, filters: list) -> list:
 
         with self.lock:
-            name = (attr, msgpack.packb(
-                    value, use_bin_type=True, strict_types=False))
-            if name in self.index:
-                return self.index[name]
+            return self.querier.query(filters)
 
     def open(self, id: str) -> str:
 
@@ -230,9 +229,9 @@ class DatabaseManager(QObject):
 
         return self.db.get_nodes()
 
-    def query_by_attr_value(self, attr: str, value):
+    def query(self, filters: list):
 
-        return self.db.query_by_attr_value(attr, value)
+        return self.db.query(filters)
 
     def open(self, id: str):
 

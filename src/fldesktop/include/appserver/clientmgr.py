@@ -35,7 +35,7 @@ REQ_TYPES = {
         "id": str
     },
     "query": {
-        "attrs": dict
+        "filters": list
     },
     "open": {
         "id": str

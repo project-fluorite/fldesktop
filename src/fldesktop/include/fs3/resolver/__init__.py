@@ -35,19 +35,9 @@ class Resolver:
 
         return self.db.get_node(id)
 
-    def query(self, attrs: dict):
+    def query(self, filters: list):
 
-        results = []
-
-        for attr, val in attrs.items():
-            r = self.db.query_by_attr_value(attr, val)
-            if r:
-                results.append(r)
-
-        if not results:
-            return []
-
-        return list(set(results[0]).intersection(*results[1:]))
+        return self.db.query(filters)
 
     def open(self, id: int):
 
