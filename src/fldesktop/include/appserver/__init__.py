@@ -172,7 +172,7 @@ class AppServer:
                 continue
             except Exception as e:
                 if not self._stop_event.is_set():
-                    print(f"Ошибка сервера: {e}")
+                    logging.error(f"Server error: {e}")
                 break
 
     def stop(self):
