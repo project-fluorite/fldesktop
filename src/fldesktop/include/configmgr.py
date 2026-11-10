@@ -1,11 +1,13 @@
 from PySide6.QtCore import QFileSystemWatcher, QTimer
 import json
 
+from fldesktop.include.thememgr import STD_COLORS
+
 
 FALLBACK_CONFIG = {
-    "background-type": "wallpaper",
-    "background-color": "#257565",
-    "wallpaper": "/usr/share/wallpapers/Pine Path.jpg",
+    "background-type": "singlecolor",
+    "background-color": STD_COLORS["black"],
+    "wallpaper": "",
     "glass-tint-color": "#151515",
     "glass-tint-alpha": 125,
     "glass-blur-strength": 0.35,
