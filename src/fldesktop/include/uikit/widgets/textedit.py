@@ -6,6 +6,7 @@ class TextEdit(Widget):
     def __init__(self, comm, name, attrs):
 
         self.qwidget = QTextEdit()
+        self.qwidget.setLineWrapMode(QTextEdit.NoWrap)
 
         super().__init__(
             comm, name, attrs
