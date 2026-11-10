@@ -24,6 +24,9 @@ class ClientHandler:
 
         logging.debug(f"Handling callback: {s}")
 
+        if not self.is_active:
+            return
+
         if isinstance(s, dict):
             if self.data_fmt == "msgpack":
                 s = msgpack.dumps(s)

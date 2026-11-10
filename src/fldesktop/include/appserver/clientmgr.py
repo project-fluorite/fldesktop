@@ -86,7 +86,7 @@ class ClientManager(QObject):
                 if "Attr.System.Type" in args["attrs"]:
                     if args["attrs"]["Attr.System.Type"] \
                         .startswith("Node.UI"):
-                        args["attrs"]["Attrs.UI.ClientHandlerUUID"] \
+                        args["attrs"]["Attr.UI.ClientHandlerUUID"] \
                             = handler_uuid
                         
             reply = self.comm.request(
@@ -133,7 +133,7 @@ class ClientManager(QObject):
     def del_client_objects(self, handler_uuid: str):
 
         objects = self.comm.request(
-            "fs3", "query", {"Attrs.UI.ClientHandlerUUID": handler_uuid}
+            "fs3", "query", [{"op": "=", "attr": "Attr.UI.ClientHandlerUUID", "value": handler_uuid}]
         )
         for obj in objects:
             self.comm.request("fs3", "delete_node", obj)

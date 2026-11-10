@@ -93,14 +93,14 @@ class Builder:
 
     def event(self, node, **kwargs):
 
-        if "Attrs.UI.ClientHandlerUUID" not in node.attrs:
+        if "Attr.UI.ClientHandlerUUID" not in node.attrs:
             return
 
         # <===========================================================================
         return
 
         self.cm.process_widget_callback(
-            node.attrs["Attrs.UI.ClientHandlerUUID"],
+            node.attrs["Attr.UI.ClientHandlerUUID"],
             kwargs
         )
 

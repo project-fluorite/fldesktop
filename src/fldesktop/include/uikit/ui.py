@@ -20,13 +20,13 @@ class UI:
 
     def event(self, **kwargs):
 
-        if "Attrs.UI.ClientHandlerUUID" not in self.attrs:
+        if "Attr.UI.ClientHandlerUUID" not in self.attrs:
             return
 
         kwargs["name"] = self.name
 
         self.comm.request(
             "appserver", "handler_callback",
-            self.attrs["Attrs.UI.ClientHandlerUUID"],
+            self.attrs["Attr.UI.ClientHandlerUUID"],
             kwargs
         )
