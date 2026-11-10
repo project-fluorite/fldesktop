@@ -14,6 +14,10 @@ class MenuItem(Widget):
 
         self._setup()
 
+        self.qaction.triggered.connect(
+            lambda: self.event(type="menuitem_pressed")
+        )
+
     def reparent(self, parent):
 
         self.parent = parent
