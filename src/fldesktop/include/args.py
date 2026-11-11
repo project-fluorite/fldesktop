@@ -13,9 +13,4 @@ class ArgumentParser:
             help="show debug messages in log"
         )
 
-        parser.add_argument(
-            "-v", "--version", action="store_true",
-            help="show version and exit"
-        )
-
         self.args = parser.parse_args()
