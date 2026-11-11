@@ -101,7 +101,8 @@ class Window(Surface):
             i.setFixedSize(24, 24)
 
         self.close_btn.setStyleSheet(
-            f"QToolButton::hover {{background-color: {STD_COLORS["red"]};}}"
+            f"""QToolButton::hover {{background-color: {STD_COLORS["red"]};}}
+                QToolButton::pressed {{background-color: {STD_COLORS["darkred"]};}}"""
         )
 
         self.layout.addWidget(self.widget)
