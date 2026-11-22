@@ -1,0 +1,31 @@
+from PySide6.QtWidgets import QScrollArea, QWidget, QVBoxLayout, QHBoxLayout
+from fldesktop.include.subsystems.ui.uikit.widgets.base import Widget
+from fldesktop.include.subsystems.ui.widgets.flowlayout import FlowLayout
+
+
+class Container(Widget):
+    def __init__(self, comm, name, attrs):
+
+        self.qwidget = QScrollArea()
+
+        super().__init__(comm, name, attrs)
+
+        self.type = "container"
+
+        self.container = QWidget()
+        self.qwidget.setWidgetResizable(True)
+        self.qwidget.setWidget(self.container)
+        if "direction" in self.attrs:
+            if self.attrs["direction"] == "ver":
+                self.qlayout = QVBoxLayout()
+            elif self.attrs["direction"] == "hor":
+                self.qlayout = QHBoxLayout()
+            elif self.attrs["direction"] == "flow":
+                self.qlayout = FlowLayout()
+            else:
+                self.qlayout = QVBoxLayout()
+        else:
+            self.qlayout = QVBoxLayout()
+        self.container.setLayout(self.qlayout)
+
+        self._setup()

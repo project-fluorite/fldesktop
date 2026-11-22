@@ -1,0 +1,249 @@
+from fldesktop.include.subsystems.fs3.models import Node
+from fldesktop.include.subsystems.fs3.db.storagemgr import StorageManager
+from fldesktop.include.subsystems.fs3.db.gc import GarbageCollector
+from fldesktop.include.subsystems.fs3.db.query import QueryEngine
+from pathlib import Path
+import threading
+import msgpack
+import uuid
+import base64
+import logging
+import time
+import queue
+import os
+
+
+class Database:
+    def __init__(self, callback, storage_path):
+
+        self.callback = callback
+        self.db = {}
+        self.index = {}
+
+        self.queue = queue.Queue()
+        self.replies = {}
+        self.lock = threading.Lock()
+        self.stop = threading.Event()
+
+        self.gc = GarbageCollector(self)
+        self.querier = QueryEngine(self)
+        self.storage = StorageManager(self, storage_path)
+        self.storage.load()
+
+    def create_node(self, attrs: dict = {}) -> None:
+
+        uuid4 = base64.urlsafe_b64encode(uuid.uuid4().bytes) \
+            .decode().rstrip("=")
+
+        logging.debug(f"Creating node with attrs {attrs} and id {uuid4}")
+
+        node = Node(uuid4, attrs)
+
+        self.db[uuid4] = node
+
+        self.update_index(uuid4)
+
+        self.callback("created", {"id": uuid4, "attrs": attrs})
+
+        return uuid4
+
+    def delete_node(self, id: int) -> None:
+
+        logging.debug(f"Deleting node with id {id}")
+
+        if id in self.db:
+            self.db.pop(id)
+
+        self.callback("deleted", {"id": id})
+
+        self.gc.run()
+
+    def set_attrs(self, id: int, attrs: dict) -> None:
+
+        if id in self.db:
+            self.db[id].attrs.update(attrs)
+
+        self.update_index(id)
+
+        self.callback("modified", {"id": id, "attrs": attrs})
+
+    def get_node(self, id: int) -> dict | None:
+
+        with self.lock:
+            if id in self.db:
+                return self.db[id].attrs
+
+    def get_nodes(self) -> dict[int, Node]:
+
+        with self.lock:
+            return self.db
+
+    def query(self, filters: list) -> list:
+
+        with self.lock:
+            return self.querier.query(filters)
+
+    def open(self, id: str) -> str:
+
+        return self.storage.open(id)
+
+    def update_index(self, id: int) -> None:
+
+        if not id in self.db:
+            return
+
+        for attr, val in self.db[id].attrs.items():
+            name = (attr, val)
+            name = (attr, msgpack.packb(
+                val, use_bin_type=True, strict_types=False))
+            if name in self.index:
+                self.index[name].append(id)
+            else:
+                self.index[name] = [id]
+
+    def sched_transaction(self, **kwargs):
+
+        self.queue.put(kwargs)
+
+    def run_transaction(self, **kwargs):
+
+        logging.debug(f"Running transaction {kwargs}")
+
+        with self.lock:
+            try:
+                if "method" not in kwargs:
+                    return
+
+                match kwargs["method"]:
+                    case "create_node":
+                        if "attrs" not in kwargs:
+                            return
+                        return self.create_node(kwargs["attrs"])
+
+                    case "delete_node":
+                        if "id" not in kwargs:
+                            return
+                        return self.delete_node(kwargs["id"])
+
+                    case "set_attrs":
+                        if "id" not in kwargs or "attrs" not in kwargs:
+                            return
+                        return self.set_attrs(kwargs["id"], kwargs["attrs"])
+
+                    case "open":
+                        if "id" not in kwargs:
+                            return
+                        return self.open(kwargs["id"])
+
+                    case _:
+                        return
+
+            except Exception as e:
+                logging.critical(f"Failed to run transaction: {str(e)}")
+
+    def mainloop(self):
+
+        while not self.stop.is_set():
+            ts = self.queue.get()
+            if "tr_id" in ts:
+                self.replies[ts["tr_id"]] = self.run_transaction(**ts)
+                if self.gc.is_save_needed(ts):
+                    self.storage.append(ts)
+
+
+class DatabaseManager:
+    def __init__(self, core):
+        super().__init__()
+
+        self.core = core
+
+        self.thread_callback = \
+            lambda s, kwargs: self.core.emit_event(s, **kwargs)
+
+        storage_path = self.core.comm.request("osmgr", "get_path", "fs3")
+        if not storage_path:
+            if Path("/home").exists() and os.access("/home", os.W_OK):
+                storage_path = "/home/fs3"
+            else:
+                storage_path = "/tmp/fs3" # When running in testing env
+
+        self.db = Database(self.thread_callback, storage_path)
+        self.db_thread = threading.Thread(
+            target=self.db.mainloop,
+            daemon=False
+        )
+        self.db_thread.start()
+
+    def create_node(self, attrs: dict):
+
+        tr_id = str(uuid.uuid4())
+
+        self.db.sched_transaction(
+            method="create_node", attrs=attrs,
+            tr_id=tr_id
+        )
+
+        while tr_id not in self.db.replies:
+            time.sleep(0.001)
+
+        return self.db.replies.pop(tr_id)
+
+    def delete_node(self, id: int):
+
+        tr_id = str(uuid.uuid4())
+
+        self.db.sched_transaction(
+            method="delete_node", id=id,
+            tr_id=tr_id
+        )
+
+        while tr_id not in self.db.replies:
+            time.sleep(0.001)
+
+        return self.db.replies.pop(tr_id)
+
+    def set_attrs(self, id: int, attrs: dict):
+
+        tr_id = str(uuid.uuid4())
+
+        self.db.sched_transaction(
+            method="set_attrs", 
+            id=id, attrs=attrs, tr_id=tr_id
+        )
+
+        while tr_id not in self.db.replies:
+            time.sleep(0.001)
+
+        return self.db.replies.pop(tr_id)
+
+    def get_node(self, id: int):
+
+        return self.db.get_node(id)
+
+    def get_nodes(self):
+
+        return self.db.get_nodes()
+
+    def query(self, filters: list):
+
+        return self.db.query(filters)
+
+    def open(self, id: str):
+
+        tr_id = str(uuid.uuid4())
+
+        self.db.sched_transaction(
+            method="open", id=id,
+            tr_id=tr_id
+        )
+
+        while tr_id not in self.db.replies:
+            time.sleep(0.001)
+
+        return self.db.replies.pop(tr_id)
+
+    def stop_thread(self):
+
+        self.db.stop.set()
+        self.db.sched_transaction(method="shutdown")
+        self.db_thread.join()

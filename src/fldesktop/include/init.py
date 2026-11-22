@@ -1,299 +1,122 @@
-from fldesktop.include import (communicator, desktop, dialogs, lifecycle, superfx,
-                     thememgr, pkgmgr, lockscreen, os_manager,
-                     configmgr, appserver, search, wm, loginmgr,
-                     localemgr, notifications, iconmgr, QApp,
-                     PostInit, fs3, uikit, appletmgr,
-                     panel, startupscreen, extsvinit, background,
-                     systemsounds)
-from fldesktop.include.appserver.clientmgr import ClientManager
-from fldesktop.include.input import InputManager
+from fldesktop.include.subsystems import subsystems, init_seq, cleanup_seq
+from fldesktop.include.supervisor import Supervisor
 
+from pathlib import Path
+import inspect
 import logging
-import os
-import traceback
 
 
-SERVICES = {
-    "LifeCycle": {
-        "object": lifecycle.LifeCycle,
-        "importance": "critical",
-        "depends": ["ExtSvInit"],
-        "runlevel": 1
-    },
-    "OSManager": {
-        "object": os_manager.OSManager,
-        "importance": "critical",
-        "depends": ["QApplication"],
-        "runlevel": 1
-    },
-    "ExtSvInit": {
-        "object": extsvinit.ExtSvInit,
-        "importance": "critical",
-        "runlevel": 1
-    },
-    "FS3": {
-        "object": fs3.FS3,
-        "importance": "critical",
-        "runlevel": 1
-    },
-    "ConfigManager": {
-        "object": configmgr.ConfigurationManager,
-        "importance": "critical",
-        "depends": ["QApplication", "OSManager"],
-        "runlevel": 1,
-    },
-    "LocaleManager": {
-        "object": localemgr.LocaleManager,
-        "importance": "critical",
-        "depends": ["ConfigManager"],
-        "runlevel": 1
-    },
-    "PackageManager": {
-        "object": pkgmgr.PackageManager,
-        "depends": ["QApplication", "IconManager"]
-    },
-    "Search": {
-        "object": search.Search,
-        "depends": ["PackageManager", "IconManager"]
-    },
-    "LoginManager": {
-        "object": loginmgr.LoginManager,
-        "depends": ["ConfigManager"]
-    },
-    "InputManager": {
-        "object": InputManager,
-        "depends": ["QApplication", "LocaleManager"]
-    },
-    "Desktop": {
-        "object": desktop.Desktop,
-        "importance": "critical",
-        "depends": [
-            "QApplication", "ConfigManager",
-            "IconManager", "PackageManager",
-            "InputManager"
-        ],
-        "runlevel": 1
-    },
-    "SuperFX": {
-        "object": superfx.SuperFX,
-        "importance": "critical",
-        "depends": ["Desktop"],
-        "runlevel": 1
-    },
-    "UIKit": {
-        "object": uikit.UIKit,
-        "importance": "critical",
-        "depends": ["Desktop", "FS3"],
-        "runlevel": 1
-    },
-    "Background": {
-        "object": background.Background,
-        "depends": ["Desktop", "SuperFX", "FS3"]
-    },
-    "QApplication": {
-        "object": QApp,
-        "importance": "critical",
-        "depends": ["PreInit"],
-        "runlevel": 1
-    },
-    "IconManager": {
-        "object": iconmgr.IconManager,
-        "importance": "critical",
-        "depends": ["QApplication", "ThemingManager"]
-    },
-    "ThemingManager": {
-        "object": thememgr.ThemingManager,
-        "importance": "critical",
-        "depends": ["QApplication"],
-        "runlevel": 1
-    },
-    "WindowManager": {
-        "object": wm.WindowManager,
-        "importance": "critical",
-        "depends": ["Desktop"]
-    },
-    "AppServer": {
-        "object": appserver.AppServer,
-        "depends": ["WindowManager"]
-    },
-    "ClientManager": {
-        "object": ClientManager,
-        "depends": ["AppServer"]
-    },
-    "StartupScreen": {
-        "object": startupscreen.StartupScreenManager,
-        "depends": ["Desktop"],
-        "runlevel": 1
-    },
-    "Lockscreen": {
-        "object": lockscreen.LockScreen,
-        "depends": ["LoginManager", "Desktop"]
-    },
-    "Panel": {
-        "object": panel.Panel,
-        "depends": ["Desktop", "AppletManager"]
-    },
-    "NotifyManager": {
-        "object": notifications.NotificationManager,
-        "depends": ["Desktop"]
-    },
-    "DialogManager": {
-        "object": dialogs.DialogManager,
-        "depends": ["WindowManager"]
-    },
-    "AppletManager": {
-        "object": appletmgr.AppletManager,
-        "depends": ["Desktop"]
-    },
-    "SystemSounds": {
-        "object": systemsounds.SystemSounds,
-        "depends": ["QApplication"]
-    },
-    "PostInit": {
-        "object": PostInit,
-        "depends": ["QApplication"],
-        "runlevel": 2
-    },
-    "QtEventLoop": {
-        "object": QApp.exec,
-        "importance": "critical",
-        "restart": True,
-        "depends": ["QApplication"],
-        "runlevel": 1
-    }
-}
-
-DEFAULTS = [
-    ("object", lambda: ...), ("importance", "optional"),
-    ("runlevel", 2), ("depends", []), ("restart", False)
-]
-
-
-class Service:
-    def __init__(self, name: str, params: dict, comm) -> None:
+class Subsystem:
+    def __init__(self, name: str, path: Path):
 
         self.name = name
-        self.comm = comm
+        self.path = path
 
-        self.started = False
+        self.sv = Supervisor(str(self.path))
 
-        for i in DEFAULTS:
-            if i[0] in params:
-                setattr(self, i[0], params[i[0]])
-            else:
-                setattr(self, i[0], i[1])
+    def start(self):
 
-    def start(self) -> None:
-        "Start service and catch exceptions"
+        self.sv.start()
 
-        if self.started:
-            return
+    def stop(self):
 
-        logging.info(f"Starting service {self.name}")
-
-        try:
-            self.object = self.object(self.comm)
-        except Exception as e:
-            tb = traceback.extract_tb(e.__traceback__)[-1]
-
-            file = tb.filename.split("/")[-1]
-
-            logging.critical(
-                f"Service {self.name} failed: {file}, line {tb.lineno}: {e}"
-            )
-
-            if self.restart:
-                self.start()
-
-            if self.importance == "critical":
-                self.comm.request("init", "failure")
-        else:
-            self.started = True
-            self.comm.emit(f"init_started_{self.name}")
-
-    def cleanup(self) -> None:
-        "Cleanup service (if supported by object)"
-
-        if hasattr(self.object, "srv_cleanup") and self.started:
-            logging.info(f"Performing cleanup for service {self.name}")
-
-            try:
-                self.object.srv_cleanup()
-            except Exception as e:
-                logging.info(f"Cleanup for {self.name} failed: {e}")
+        self.sv.stop()
 
 
 class Init:
-    def __init__(self):
-        
-        self.comm = communicator.Communicator()
+    def __init__(self, comm):
 
-        self.comm.register(
-            "init",
-            {
-                "run": self.run,
-                "cleanup": self.cleanup,
-                "failure": self.on_failure
-            }
+        self.comm = comm
+
+        self.is_ready = False
+
+        self.subsystems = {}
+
+        self.preload_subsystems()
+
+        self.done_tasks = []
+
+    def start(self):
+
+        self.mark_ready(False)
+
+        logging.info(f"Running init...")
+
+        for i in init_seq:
+
+            self.comm.request(
+                "tasksched", "schedule", lambda i=i: self.run_task(i)
+            )
+
+        self.comm.request("tasksched", "schedule", self.mark_ready)
+
+    def stop(self):
+
+        self.mark_ready(False)
+
+        logging.info(f"Stopping...")
+
+        for i in cleanup_seq:
+
+            self.comm.request(
+                "tasksched", "schedule", lambda i=i: self.run_task(i, True)
+            )
+
+        self.comm.request(
+            "tasksched", "schedule", lambda: \
+                self.comm.request("lifecycle", "quit")
         )
 
-        self.resolve_services()
-
-    def resolve_services(self) -> None:
-        "Resolve services dependencies and make service list"
-
-        services = []
-
-        for name, params in SERVICES.items():
-            services.append(Service(name, params, self.comm))
-
-        self.services = list(services)
-        n = len(self.services)
-        
-        for _ in range(n):
-            changed = False
-            for i in range(n):
-                dependencies = getattr(self.services[i], "depends", [])
-                
-                for dep in dependencies:
-                    dep_index = next((
-                        idx for idx, el in enumerate(self.services) \
-                            if el.name == dep
-                    ), -1)
-                    
-                    if dep_index > i:
-                        self.services.insert(i, self.services.pop(dep_index))
-                        changed = True
-            
-            if not changed:
-                break
-
-        logging.debug("Running these services:")
-        for s in self.services:
-            logging.debug(s.name)
-                
-    def run(self, runlevel: int = 1) -> None:
-        "Start services"
-
-        logging.info("Starting services...")
-        
-        for service in self.services:
-            if service.runlevel <= runlevel:
-                service.start()
-
-    def cleanup(self) -> None:
-        "Cleanup services"
-        
-        for service in reversed(self.services):
-            service.cleanup()
-
-    def on_failure(self) -> None:
-        "When a critical service crashes"
-
-        logging.critical(
-            "Something very bad had occured, cleaning and exiting..."
+        self.comm.request(
+            "tasksched", "schedule", lambda: self.mark_ready(False)
         )
 
-        self.cleanup()
-        os._exit(1)
-        
+    def run_task(self, task: str, stop: bool = False):
+
+        logging.info(f"Running {"stop" if stop else "start"} task {task}...")
+
+        if "." not in task: # start subsystem
+            logging.info(
+                f"{"Starting" if not stop else "Stopping"} subsystem {task}"
+            )
+            if task in self.subsystems:
+                if not stop:
+                    self.subsystems[task].start()
+                    self.comm.wait_for_sv(f"{task}-core")
+                else:
+                    self.subsystems[task].stop()
+
+            self.done_tasks.append(task)
+
+        else: # start subsystem service
+            logging.info(
+                f"{"Starting" if not stop else "Stopping"} service {task}"
+            )
+            spl = task.split(".")
+            if len(spl) >= 2:
+                ss = spl[0]
+                if ss in self.subsystems:
+                    self.comm.wait_for_sv(f"{ss}-core")
+                    self.comm.request(
+                        f"{ss}-core",
+                        "start_service" if not stop else "stop_service",
+                        ".".join(spl[1:])
+                    )
+
+            if task in self.done_tasks:
+                self.done_tasks.remove(task)
+
+    def preload_subsystems(self):
+
+        for name, ss in subsystems.items():
+            try:
+                logging.info(f"Preloading subsystem {name}")
+                sscp = Path(inspect.getfile(ss))
+                ssinst = Subsystem(name, sscp)
+                self.subsystems[name] = ssinst
+            except Exception as e:
+                logging.error(f"Failed to preload subsystem {ss}: {e}")
+
+    def mark_ready(self, ready: bool = True):
+        self.is_ready = ready
+        logging.info(f"Setting ready flag to {ready}")

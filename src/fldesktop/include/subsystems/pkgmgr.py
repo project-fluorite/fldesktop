@@ -1,0 +1,210 @@
+import os
+import sys
+sys.path.insert(0, os.getcwd())
+
+
+from fldesktop.include.subsystem import Subsystem
+
+from pathlib import Path
+import subprocess
+import logging
+import uuid
+import json
+import os
+
+
+class Package:
+    def __init__(self, path: str, comm):
+        self.comm = comm
+        self.package = ""
+        self.name = ""
+        self.generic_name = {}
+        self.version = ""
+        self.icon = self.comm.request("iconmgr", "get", "application-generic")
+        self.custom_env = {}
+        self.search = False
+        self.executable = False
+        self.path = path
+
+        self.procs = []
+
+        self.mount_path = Path(
+            os.environ["XDG_RUNTIME_DIR"]
+        ) / "fla" / str(uuid.uuid4())
+
+        self.mount()
+        self.load_metadata()
+
+    def load_metadata(self):
+        "Load package metadata"
+
+        path = self.mount_path / "manifest.json"
+
+        if path.exists():
+            with open(path) as f:
+                data = json.load(f)
+            
+            if "package" in data:
+                self.package = data["package"]
+
+            if "name" in data:
+                self.name = data["name"]
+            
+            if "generic_name" in data:
+                self.generic_name = data["generic_name"]
+
+            if "env" in data:
+                self.custom_env = data["env"]
+
+        else:
+            self.package = "Unknown"
+            self.name = "Unknown"
+            self.generic_name = {"en_US": "Unknown"}
+
+        if (self.mount_path / "bin" / "search").exists():
+            self.search = True
+        if (self.mount_path / "bin" / "main").exists():
+            self.executable = True
+
+        if (self.mount_path / "icon.fvgi").exists():
+            with open(self.mount_path / "icon.fvgi") as f:
+                self.icon = self.comm.request("iconmgr", "parse", f.read())
+
+    def mount(self):
+        "Mount app squashfs"
+
+        logging.info(f"Mounting package from {self.path} to {self.mount_path}")
+
+        os.makedirs(self.mount_path)
+        subprocess.run(["squashfuse", self.path, self.mount_path])
+    
+    def unmount(self):
+
+        logging.info(f"Unmounting package from {self.mount_path}")
+
+        subprocess.run(["fusermount", "-u", self.mount_path])
+        os.rmdir(self.mount_path)
+    
+    def exec(self, arguments: list = []):
+
+        if self.executable:
+
+            args = [
+                "--bind", str(self.mount_path / "runtime"), "/",
+                "--bind", f"{self.mount_path / "bin"}", "/application/bin",
+                "--bind", os.environ["XDG_RUNTIME_DIR"], "/run/user/1000",
+                "--bind", str(Path.home()), "/home",
+                "--proc", "/proc"
+            ]
+
+            for k, v in self.custom_env.items():
+                args.append("--setenv")
+                args.append(str(k))
+                args.append(str(v))
+
+            args.append("/application/bin/main")
+
+            logging.debug(f"Running bwrap with these arguments: {args}")
+
+            proc = QProcess()
+            proc.finished.connect(
+                lambda code, status, proc=proc: self.on_proc_finished(
+                    code, status, proc
+                )
+            )
+            proc.start("/usr/bin/bwrap", args)
+
+            self.procs.append(proc)
+
+    def on_proc_finished(self, code: int, status, proc: QProcess):
+
+        logging.debug(f"{self.package} instance exited with code {code}")
+
+        if proc in self.procs:
+            self.procs.remove(proc)
+
+        if code != 0:
+            self.comm.request(
+                "dialogmgr", "sys_error",
+                f"Package \"{self.package}\" instance exited with code {code}"
+            )
+
+
+class PackageManager(Subsystem):
+    def __init__(self):
+        super().__init__("pkgmgr")
+
+        self.comm.register("pkgmgr", {
+            "get_apps": self.get_apps,
+            "run_app": self.run_app,
+            "unmount": self.unmount
+        })
+
+        self.apps_path = self.comm.request(
+            "osmgr", "get_path", "Applications"
+        )
+        self.packages = []
+        self.loaded_packages = {}
+        self.refresh_apps()
+
+        self.load_apps()
+
+        self.mainloop()
+    
+    def refresh_apps(self):
+        "Refreshes installed apps"
+
+        logging.info("Refreshing package list...")
+
+        try:
+            for i in os.listdir(self.apps_path):
+                if i.split(".")[-1] == "fla":
+                    path = self.apps_path + "/" + i
+                    self.packages.append(path)
+        except Exception as e:
+            print(e)
+        
+    def load_apps(self):
+        "Load and mount packages"
+
+        for i in self.packages:
+            package = Package(i, self.comm)
+            self.loaded_packages[package.package] = package
+
+            logging.info(f"Loaded package {package.package}")
+    
+    def get_apps(self):
+        "Return app list"
+
+        return self.loaded_packages
+
+    def run_app(self, package: str, arguments: list = []):
+        "Run app by it's package name"
+
+        if package in self.loaded_packages:
+            self.loaded_packages[package].exec(arguments)
+    
+    def unmount(self):
+        "Unmount packages"
+
+        for i in self.loaded_packages:
+            self.loaded_packages[i].unmount()
+    
+    def killall(self):
+        "Terminate (or kill) all processes"
+
+        for i in self.loaded_packages.values():
+            for proc in i.procs:
+                proc.terminate()
+                if not proc.waitForFinished(3000):
+                    proc.kill()
+
+    def srv_cleanup(self):
+        "Service cleanup method for Init"
+
+        self.killall()
+        self.unmount()
+
+
+if __name__ == "__main__":
+    PackageManager()

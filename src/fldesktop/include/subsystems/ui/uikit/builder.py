@@ -1,0 +1,112 @@
+from fldesktop.include.subsystems.ui.uikit.widgets import widgets
+from fldesktop.include.subsystems.ui.uikit.widgets.base import Widget
+from fldesktop.include.subsystems.ui.uikit.applet import Applet
+from fldesktop.include.subsystems.ui.uikit.window import Window
+
+import logging
+import locale
+
+
+class Builder:
+    def __init__(self, cm):
+
+        self.cm = cm
+        self.comm = self.cm.comm
+
+        self.objects = {}
+        self.translations = {}
+
+    def create_applet(self, node_id: str, node_attrs: dict):
+
+        self.objects[node_id] = Applet(self.comm, node_id, node_attrs)
+
+    def create_widget(self, node_id: int, node_attrs: dict):
+
+        logging.debug(
+            f"Creating widget from node {node_id} with attrs {node_attrs}"
+        )
+
+        wtype = node_attrs["Attr.System.Type"].split(".")[-1].lower()
+
+        wname = node_id#f"{wtype}_{node_id}"
+
+        widget = widgets[wtype](self.comm, wname, node_attrs)
+
+        self.objects[wname] = widget
+
+    def create_window(self, node_id: str, node_attrs: dict):
+
+        self.objects[node_id] = Window(self.comm, node_id, node_attrs)
+
+    def process_relation(self, node_id: int, node_attrs: dict):
+
+        logging.debug(
+            f"Processing relation with id {node_id}, attrs {node_attrs}"
+        )
+
+        if "Attr.Relation.From" in node_attrs:
+            rfrom = node_attrs["Attr.Relation.From"]
+            if rfrom not in self.objects:
+                return
+        else:
+            return
+
+        if "Attr.Relation.To" in node_attrs:
+            rto = node_attrs["Attr.Relation.To"]
+            if rto not in self.objects:
+                return
+        else:
+            return
+
+        logging.debug("passed")
+
+        if rfrom in self.objects:
+            self.objects[rto].reparent(self.objects[rfrom])
+
+    def on_node_modified(self, id):
+
+        if id not in self.objects:
+            return
+
+        logging.debug(f"Updating {id} attributes")
+
+        attrs = self.comm.request("fs3", "get_attrs", id)
+
+        self.objects[id].attrs = attrs
+        self.objects[id].apply_attrs()
+
+    def on_node_deleted(self, id):
+
+        if id not in self.objects:
+            return
+
+        logging.debug(f"Object {id} was deleted, cleaning...")
+
+        self.objects[id].delete()
+        self.objects.pop(id)
+
+    def request(self, id, method, kwargs):
+
+        if id in self.objects:
+            if method in self.objects[id].callables:
+                return self.objects[id].callables[method](**kwargs)
+
+    def event(self, node, **kwargs):
+
+        if "Attr.UI.ClientHandlerUUID" not in node.attrs:
+            return
+
+        # <===========================================================================
+        return
+
+        self.cm.process_widget_callback(
+            node.attrs["Attr.UI.ClientHandlerUUID"],
+            kwargs
+        )
+
+    def cleanup(self):
+
+        for name, obj in self.objects.items():
+            if hasattr(obj, "_cleanup"):
+                logging.debug(f"Cleaning up object {name}")
+                obj._cleanup()
