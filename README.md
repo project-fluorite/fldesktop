@@ -1,2 +1,2 @@
 # fldesktop
-FluoriteOS graphical environment
+Fluorite main system service and graphical environment
